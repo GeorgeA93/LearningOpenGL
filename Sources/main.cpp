@@ -4,6 +4,10 @@
 // System Headers
 #include <GLFW/glfw3.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include "Shader.h"
 #include "Texture.h"
 
@@ -106,8 +110,26 @@ int main() {
         // Activate shader
         shader.Use();
 
+        // Create transformations
+        glm::mat4 transform;
+        transform = glm::rotate(transform, glm::radians((GLfloat)glfwGetTime() * 50.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        transform = glm::translate(transform, glm::vec3(0.5f, -0.5f, 0.0f));
+
+
+        // Get matrix's uniform location and set matrix
+        GLint transformLoc = glGetUniformLocation(shader.Program, "transform");
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+
         // Draw container
         glBindVertexArray(VAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+        transform = glm::mat4();
+        transform = glm::translate(transform, glm::vec3(-0.5f, 0.5f, 0.0f));
+        GLfloat scaleAmount = glfwGetTime();
+        transform = glm::scale(transform, glm::vec3(scaleAmount, scaleAmount, scaleAmount));
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
 
