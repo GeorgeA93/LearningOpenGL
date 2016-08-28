@@ -10,15 +10,23 @@
 
 #include "Shader.h"
 #include "Texture.h"
+#include "Camera.h"
 
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
+void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+void mouseCallback(GLFWwindow *window, double xpos, double ypos);
 void doMovement();
 
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-const GLfloat cameraSpeed = 0.05f;
+
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+GLfloat lastX = mWidth / 2.0f;
+GLfloat lastY = mHeight / 2.0f;
 bool keys[1024];
+bool firstMouse = true;
+
+
+GLfloat deltaTime = 0.0f;
+GLfloat lastFrame = 0.0f;
 
 int main() {
 
@@ -28,6 +36,7 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+    glfwWindowHint(GLFW_SAMPLES, 4);
 
     // Setup window
     auto window = glfwCreateWindow(mWidth, mHeight, "Learning OpenGL", nullptr, nullptr);
@@ -36,7 +45,14 @@ int main() {
         return EXIT_FAILURE;
     }
     glfwMakeContextCurrent(window);
+
     glfwSetKeyCallback(window, keyCallback);
+    glfwSetCursorPosCallback(window, mouseCallback);
+    glfwSetScrollCallback(window, scrollCallback);
+
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    glfwSetWindowTitle(window, "What is george doing?????????????????");
 
     // Load open gl
     gladLoadGL();
@@ -128,19 +144,12 @@ int main() {
             glm::vec3(-1.3f, 1.0f, -1.5f)
     };
 
-    double lastTime = glfwGetTime();
-    int nbFrames = 0;
 
     while (!glfwWindowShouldClose(window)) {
-        double currentTime = glfwGetTime();
-        double delta = currentTime - lastTime;
-        nbFrames++;
-        if (delta >= 1.0) {
-            double fps = double(nbFrames) / delta;
-            std::cout << "FPS: " << fps << std::endl;
-            nbFrames = 0;
-            lastTime += 1.0;
-        }
+
+        GLfloat currentFrame = (GLfloat)glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
 
         glfwPollEvents();
         doMovement();
@@ -150,40 +159,39 @@ int main() {
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        // Activate shader
+        shader.Use();
 
         // Bind Texture
         texture.Bind();
         glUniform1i(glGetUniformLocation(shader.Program, "ourTexture"), 0);
 
-        // Activate shader
-        shader.Use();
-
         glm::mat4 view;
-        view = glm::lookAt(cameraPos, cameraPos * cameraFront, cameraUp);
-
+        view = camera.GetViewMatrix();
         glm::mat4 projection;
-        projection = glm::perspective(glm::radians(45.0f), (GLfloat) mWidth / (GLfloat) mHeight, 0.1f, 100.0f);
+        projection = glm::perspective(camera.Zoom, (float)mWidth/(float)mHeight, 0.1f, 1000.0f);
+        // Get the uniform locations
         GLint modelLoc = glGetUniformLocation(shader.Program, "model");
         GLint viewLoc = glGetUniformLocation(shader.Program, "view");
         GLint projLoc = glGetUniformLocation(shader.Program, "projection");
-
+        // Pass the matrices to the shader
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
         glBindVertexArray(VAO);
-        for (GLuint i = 0; i < 10; i++) {
+        for(GLuint i = 0; i < 10; i++)
+        {
+            // Calculate the model matrix for each object and pass it to shader before drawing
             glm::mat4 model;
             model = glm::translate(model, cubePositions[i]);
-            GLfloat angle = glm::radians(20.0f * i);
-            if (i % 3 == 0) {
-                angle = glm::radians((GLfloat) glfwGetTime() * 60.0f);
-            }
+            GLfloat angle = 20.0f * i;
             model = glm::rotate(model, angle, glm::vec3(1.0f, 0.3f, 0.5f));
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
         glBindVertexArray(0);
-
+        // Swap the buffers
         glfwSwapBuffers(window);
     }
 
@@ -200,25 +208,44 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mode
         glfwSetWindowShouldClose(window, GL_TRUE);
     }
 
-    if(action == GLFW_PRESS) {
+    if (action == GLFW_PRESS) {
         keys[key] = true;
-    } else if(action == GLFW_RELEASE) {
+    } else if (action == GLFW_RELEASE) {
         keys[key] = false;
     }
 }
 
-void doMovement()
+void doMovement() {
+    std::cout << deltaTime << std::endl;
+    if(keys[GLFW_KEY_W])
+        camera.ProcessKeyboard(FORWARD, deltaTime);
+    if(keys[GLFW_KEY_S])
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
+    if(keys[GLFW_KEY_A])
+        camera.ProcessKeyboard(LEFT, deltaTime);
+    if(keys[GLFW_KEY_D])
+        camera.ProcessKeyboard(RIGHT, deltaTime);
+}
+
+
+void mouseCallback(GLFWwindow *window, double xpos, double ypos) {
+    if(firstMouse)
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    GLfloat xoffset = xpos - lastX;
+    GLfloat yoffset = lastY - ypos;  // Reversed since y-coordinates go from bottom to left
+
+    lastX = xpos;
+    lastY = ypos;
+
+    camera.ProcessMouseMovement(xoffset, yoffset);
+}
+
+void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    if (keys[GLFW_KEY_W]) {
-        cameraPos += cameraSpeed * cameraFront;
-    }
-    if (keys[GLFW_KEY_S]) {
-        cameraPos -= cameraSpeed * cameraFront;
-    }
-    if (keys[GLFW_KEY_A]) {
-        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-    }
-    if (keys[GLFW_KEY_D]) {
-        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-    }
+    camera.ProcessMouseScroll(yoffset);
 }

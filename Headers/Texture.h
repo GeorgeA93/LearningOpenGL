@@ -2,7 +2,7 @@
 // Created by George Allen on 16/08/2016.
 //
 
-#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION // Needed to get STB Image to work. (Not sure if platform dependent atm)
 
 #ifndef LEARNINGOPENGL_TEXTURE_H
 #define LEARNINGOPENGL_TEXTURE_H
